@@ -31,12 +31,22 @@ impl ApplicationHandler<State> for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let state = match &mut self.state {
+            Some(state) => state,
+            None => return,
+        };
         match event {
-            WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
-                event_loop.exit();
-            },
+            WindowEvent::CloseRequested => {println!("The close button was pressed; stopping"); event_loop.exit();},
+            WindowEvent::Resized(size) => state.resize(size.width, size.height),
             WindowEvent::RedrawRequested => {
+                state.update();
+                match state.render() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("{e}");
+                        event_loop.exit();
+                    }
+                }
             }
             _ => (),
         }
