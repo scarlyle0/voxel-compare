@@ -9,6 +9,8 @@ pub struct State {
     queue: wgpu::Queue, // Submit things to run on GPU
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
+
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 impl State {
@@ -58,6 +60,53 @@ impl State {
             desired_maximum_frame_latency: 2,
         };
 
+        // Tell GPU how to draw geometry using our shaders
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+
+        let render_pipeline_layout =
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[],
+            immediate_size: 0,
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[], // type of vertices we want to pass to vertex shader
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState { // How to interpret vertices when converting to triangle
+                topology: wgpu::PrimitiveTopology::TriangleList, // 3 vertices = 1 triangle
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview_mask: None,
+                cache: None,
+        });
         Ok(Self {
             window,
             surface,
@@ -65,6 +114,7 @@ impl State {
             queue,
             config,
             is_surface_configured: false,
+            render_pipeline,
         })
     }
 
@@ -122,13 +172,12 @@ impl State {
 
         // Creates a render pass: instructions for drawing into the surface
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 // Where we draw our color to
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
-                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.1,
@@ -138,12 +187,16 @@ impl State {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 occlusion_query_set: None,
                 timestamp_writes: None,
                 multiview_mask: None,
             });
+
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
 
         // Finish encoding, send command buffer to GPU
