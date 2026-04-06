@@ -5,9 +5,8 @@ use winit::{
     application::ApplicationHandler,
     event::{KeyEvent, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
-    window::Window,
-    window::WindowId
+    keyboard::PhysicalKey,
+    window::{Window, WindowId},
 };
 
 pub struct App {
@@ -48,7 +47,16 @@ impl ApplicationHandler<State> for App {
                     }
                 }
             }
-            _ => (),
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key: PhysicalKey::Code(code),
+                        state: key_state,
+                        ..
+                    },
+                ..
+            } => state.handle_key(event_loop, code, key_state.is_pressed()),
+            _ => {}
         }
     }
 }

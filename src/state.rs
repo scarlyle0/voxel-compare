@@ -2,6 +2,9 @@ use winit::window::Window;
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use crate::texture;
+use crate::controller::CameraController;
+use winit::keyboard::KeyCode;
+use winit::event_loop::ActiveEventLoop;
 
 // CPU representation of vertex
 #[repr(C)]
@@ -12,16 +15,47 @@ struct Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.5, -0.5, 0.5], tex_coords: [1.0, 0.0], },
-    Vertex { position: [0.5, 0.5, 0.5], tex_coords: [1.0, 1.0], },
-    Vertex { position: [-0.5, -0.5, 0.5], tex_coords: [0.0, 0.0],},
-    Vertex { position: [-0.5, 0.5, 0.5], tex_coords: [0.0, 1.0], },
+    Vertex { position: [-0.5, -0.5,  0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5,  0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-0.5,  0.5,  0.5], tex_coords: [0.0, 1.0] },
+
+    Vertex { position: [ 0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, -0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-0.5,  0.5, -0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [ 0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
+
+    Vertex { position: [-0.5,  0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-0.5,  0.5,  0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [ 0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
+
+    Vertex { position: [-0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5, -0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-0.5, -0.5,  0.5], tex_coords: [0.0, 1.0] },
+
+    Vertex { position: [-0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5,  0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
+
+    Vertex { position: [ 0.5, -0.5, -0.5], tex_coords: [0.0, 0.0] },
+    Vertex { position: [ 0.5, -0.5,  0.5], tex_coords: [1.0, 0.0] },
+    Vertex { position: [ 0.5,  0.5,  0.5], tex_coords: [1.0, 1.0] },
+    Vertex { position: [ 0.5,  0.5, -0.5], tex_coords: [0.0, 1.0] },
 ];
 
+
 // Front facing is CCW
+
 const INDICES: &[u16] = &[
-    0, 1, 2,
-    2, 1, 3,
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4,
+    8, 9, 10, 10, 11, 8,
+    12, 13, 14, 14, 15, 12,
+    16, 17, 18, 18, 19, 16,
+    20, 21, 22, 22, 23, 20,
 ];
 
 impl Vertex {
@@ -36,6 +70,53 @@ impl Vertex {
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBS,
         }
+    }
+}
+
+#[rustfmt::skip]
+pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = glam::Mat4::from_cols(
+    glam::Vec4::new(1.0, 0.0, 0.0, 0.0),
+    glam::Vec4::new(0.0, 1.0, 0.0, 0.0),
+    glam::Vec4::new(0.0, 0.0, 0.5, 0.0),
+    glam::Vec4::new(0.0, 0.0, 0.5, 1.0),
+);
+
+pub struct Camera {
+    pub eye: glam::Vec3,
+    pub target: glam::Vec3,
+    pub up: glam::Vec3,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub znear: f32,
+    pub zfar: f32,
+}
+
+impl Camera {
+    fn build_view_projection_matrix(&self) -> glam::Mat4 {
+        // Moves world to be at position and rotation of camera
+        let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
+        // Warps scene to give the effect of depth
+        let proj = glam::Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+
+        return OPENGL_TO_WGPU_MATRIX * proj * view;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniform {
+    view_proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+    fn new() -> Self {
+        Self {
+            view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+        }
+    }
+
+    fn update_view_proj(&mut self, camera: &Camera) {
+        self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
     }
 }
 
@@ -56,6 +137,12 @@ pub struct State {
 
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
+
+    camera: Camera,
+    camera_uniform: CameraUniform,
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+    camera_controller: CameraController,
 }
 
 impl State {
@@ -151,6 +238,58 @@ impl State {
             }
         );
 
+        // Camera
+        let camera = Camera {
+            eye: glam::Vec3::new(0.0, 1.0, 2.0),
+            target: glam::Vec3::ZERO,
+            up: glam::Vec3::Y,
+            aspect: config.width as f32 / config.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+
+        // Camera uniform buffer
+        let mut camera_uniform = CameraUniform::new();
+        camera_uniform.update_view_proj(&camera);
+
+        let camera_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Camera Buffer"),
+                contents: bytemuck::cast_slice(&[camera_uniform]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        );
+
+        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+            label: Some("camera_bind_group_layout"),
+        });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &camera_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                }
+            ],
+            label: Some("camera_bind_group"),
+        });
+
+        let camera_controller = CameraController::new(0.2);
+
         // Convert CPU array -> GPU vertices buffer
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
@@ -176,7 +315,10 @@ impl State {
         let render_pipeline_layout =
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[Some(&texture_bind_group_layout)],
+            bind_group_layouts: &[
+                Some(&texture_bind_group_layout),
+                Some(&camera_bind_group_layout),
+            ],
             immediate_size: 0,
         });
 
@@ -232,6 +374,11 @@ impl State {
             index_buffer,
             diffuse_bind_group,
             diffuse_texture,
+            camera,
+            camera_uniform,
+            camera_buffer,
+            camera_bind_group,
+            camera_controller,
         })
     }
 
@@ -246,6 +393,17 @@ impl State {
     }
 
     pub fn update(&mut self) {
+        self.camera_controller.update_camera(&mut self.camera);
+        self.camera_uniform.update_view_proj(&self.camera);
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+    }
+
+    pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
+        if code == KeyCode::Escape && is_pressed {
+            event_loop.exit();
+        } else {
+            self.camera_controller.handle_key(code, is_pressed);
+        }
     }
 
     pub fn render(&mut self) -> anyhow::Result<()> {
@@ -314,6 +472,7 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
