@@ -3,8 +3,11 @@ use std::sync::Arc;
 use wgpu::util::DeviceExt;
 use crate::texture;
 use crate::controller::CameraController;
-use winit::keyboard::KeyCode;
-use winit::event_loop::ActiveEventLoop;
+use winit::{
+    keyboard::KeyCode,
+    event_loop::ActiveEventLoop,
+};
+use crate::texture::Texture;
 
 // CPU representation of vertex
 #[repr(C)]
@@ -53,9 +56,9 @@ const INDICES: &[u16] = &[
     0, 1, 2, 2, 3, 0,
     4, 5, 6, 6, 7, 4,
     8, 9, 10, 10, 11, 8,
-    12, 13, 14, 14, 15, 12,
+    12, 13, 15, 15, 13, 14,
     16, 17, 18, 18, 19, 16,
-    20, 21, 22, 22, 23, 20,
+    20, 22, 21, 20, 23, 22,
 ];
 
 impl Vertex {
@@ -143,6 +146,8 @@ pub struct State {
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
+
+    depth_texture: Texture,
 }
 
 impl State {
@@ -195,6 +200,8 @@ impl State {
         // Load image and create GPU texture, view, and sampler from image data
         let diffuse_bytes = include_bytes!("strawberry.jpg");
         let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "strawberry.jpg").unwrap();
+
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, "depth_texture");
         
         // Layout describing how the shader access texture + sampler
         let texture_bind_group_layout =
@@ -352,14 +359,20 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview_mask: None,
-                cache: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_FORMAT,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false, 
+            },
+            multiview_mask: None,
+            cache: None,
         });
         Ok(Self {
             window,
@@ -379,6 +392,7 @@ impl State {
             camera_buffer,
             camera_bind_group,
             camera_controller,
+            depth_texture,
         })
     }
 
@@ -389,6 +403,7 @@ impl State {
             self.config.height = height;
             self.surface.configure(&self.device, &self.config);
             self.is_surface_configured = true;
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
         }
     }
 
@@ -464,7 +479,14 @@ impl State {
                     },
                     depth_slice: None,
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
                 multiview_mask: None,
