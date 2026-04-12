@@ -198,56 +198,8 @@ impl State {
             }
         );
 
-        // Camera
-        let camera = Camera {
-            eye: glam::Vec3::new(0.0, 1.0, 2.0),
-            target: glam::Vec3::ZERO,
-            up: glam::Vec3::Y,
-            aspect: config.width as f32 / config.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
-
-        // Camera uniform buffer
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
-
-        let camera_buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        );
-
-        let camera_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("camera_bind_group_layout"),
-        });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: camera_buffer.as_entire_binding(),
-                }
-            ],
-            label: Some("camera_bind_group"),
-        });
-
+        
+        let camera = CameraBundle::new(&ctx.device, ctx.aspect_ratio());
         let camera_controller = CameraController::new(0.2);
 
         // Convert CPU array -> GPU vertices buffer
@@ -354,6 +306,7 @@ impl State {
         if width > 0 && height > 0 {
             self.config.width = width;
             self.config.height = height;
+            self.camera.set_aspect(self.ctx.aspect_ratio());
             self.surface.configure(&self.device, &self.config);
             self.is_surface_configured = true;
             self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
@@ -363,7 +316,7 @@ impl State {
     pub fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera);
         self.camera_uniform.update_view_proj(&self.camera);
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
+        self.camera.sync_to_gpu(&self.ctx.queue);
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {

@@ -35,14 +35,90 @@ struct CameraUniform {
 }
 
 impl CameraUniform {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
         }
     }
 
-    fn update_view_proj(&mut self, camera: &Camera) {
+    pub fn update_view_proj(&mut self, camera: &Camera) {
         self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
     }
 }
 
+// Everything needed to drive the camera from the GPU side:
+// the logical camera, its uniform mirror, and the GPU buffer + bind group.
+pub struct CameraBundle {
+    pub camera: Camera,
+    pub uniform: CameraUniform,
+    pub buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    pub bind_group_layout: wgpu::BindGroupLayout,
+}
+
+imp CameraBundle {
+    pub fn new(device: &wgpu::Device, aspect: f32) -> Self {
+        use wgpu::util::DeviceExt;
+ 
+        let camera = Camera {
+            eye: glam::Vec3::new(0.0, 1.0, 2.0),
+            target: glam::Vec3::ZERO,
+            up: glam::Vec3::Y,
+            aspect,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+ 
+        let mut uniform = CameraUniform::new();
+        uniform.update_view_proj(&camera);
+ 
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+ 
+        let bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("camera_bind_group_layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+ 
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("camera_bind_group"),
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        });
+ 
+        Self {
+            camera,
+            uniform,
+            buffer,
+            bind_group,
+            bind_group_layout,
+        }
+    }
+ 
+    // Call once per frame after the controller has moved the camera.
+    pub fn sync_to_gpu(&mut self, queue: &wgpu::Queue) {
+        self.uniform.update_view_proj(&self.camera);
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
+    }
+ 
+    pub fn set_aspect(&mut self, aspect: f32) {
+        self.camera.aspect = aspect;
+    }
+}
