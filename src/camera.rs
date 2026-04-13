@@ -30,7 +30,7 @@ impl Camera {
 // GPU representation of the camera, must match the uniform layout in shader.wgsl
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct CameraUniform {
+pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
 }
 
@@ -56,7 +56,7 @@ pub struct CameraBundle {
     pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
-imp CameraBundle {
+impl CameraBundle {
     pub fn new(device: &wgpu::Device, aspect: f32) -> Self {
         use wgpu::util::DeviceExt;
  

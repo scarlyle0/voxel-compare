@@ -1,5 +1,5 @@
 use winit::keyboard::KeyCode;
-use crate::state::Camera;
+use crate::camera::Camera;
 
 pub struct CameraController {
     speed: f32,
