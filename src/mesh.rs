@@ -94,4 +94,7 @@ impl Mesh {
             num_indices: INDICES.len() as u32,
         }
     }
+
+    pub fn from_vertices(device: &wgpu::Device, vertices: &[Vertex], indices: &[u16]) -> Self {
+    }
 }
