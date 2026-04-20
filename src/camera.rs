@@ -61,13 +61,13 @@ impl CameraBundle {
         use wgpu::util::DeviceExt;
  
         let camera = Camera {
-            eye: glam::Vec3::new(0.0, 1.0, 2.0),
-            target: glam::Vec3::ZERO,
+            eye: glam::Vec3::new(16.0, 90.0, 90.0),
+            target: glam::Vec3::new(0.0, 25.0, 0.0),
             up: glam::Vec3::Y,
             aspect,
-            fovy: 45.0,
+            fovy: 60.0,
             znear: 0.1,
-            zfar: 100.0,
+            zfar: 500.0,
         };
  
         let mut uniform = CameraUniform::new();
