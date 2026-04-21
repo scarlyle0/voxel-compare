@@ -1,14 +1,14 @@
-// CPU representation of vertex
+// CPU representation of a vertex
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
+    pub position: [f32; 3],
     pub color: [f32; 3],
 }
 
 impl Vertex {
     const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
+        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
