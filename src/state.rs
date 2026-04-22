@@ -1,23 +1,23 @@
 use std::sync::Arc;
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
- 
+
 use crate::{
     camera::CameraBundle,
     controller::CameraController,
     gpu_context::GpuContext,
-    mesh::{Mesh, Vertex},
+    mesh::Vertex,
     texture,
+    world::World,
 };
 
 pub struct State {
     ctx: GpuContext,
- 
-    render_pipeline: wgpu::RenderPipeline,
-    mesh: Mesh,
 
-    diffuse: texture::TextureBundle,
+    render_pipeline: wgpu::RenderPipeline,
+    world: World,
+
     depth_texture: texture::Texture,
- 
+
     camera: CameraBundle,
     camera_controller: CameraController,
 }
@@ -26,18 +26,10 @@ impl State {
     pub async fn new(window: Arc<Window>) -> anyhow::Result<State>{
         let ctx = GpuContext::new(window).await?;
 
-        
         let camera = CameraBundle::new(&ctx.device, ctx.aspect_ratio());
-        let camera_controller = CameraController::new(0.2);
+        let camera_controller = CameraController::new(1.5);
 
-        let mesh = Mesh::cube(&ctx.device);
-
-        let diffuse = texture::TextureBundle::from_image_bytes(
-            &ctx.device,
-            &ctx.queue,
-            include_bytes!("strawberry.jpg"),
-            "strawberry.jpg",
-        );
+        let world = World::generate(&ctx.device, 4);
 
         let depth_texture = texture::Texture::create_depth_texture(&ctx.device, &ctx.config, "depth_texture");
 
@@ -48,7 +40,6 @@ impl State {
             ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
                 bind_group_layouts: &[
-                    Some(&diffuse.bind_group_layout),
                     Some(&camera.bind_group_layout),
                 ],
                 immediate_size: 0,
@@ -102,8 +93,7 @@ impl State {
         Ok(Self {
             ctx,
             render_pipeline,
-            mesh,
-            diffuse,
+            world,
             camera,
             camera_controller,
             depth_texture,
@@ -183,9 +173,9 @@ impl State {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.53,
+                            g: 0.81,
+                            b: 0.98,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -206,11 +196,13 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse.bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, self.mesh.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.mesh.num_indices, 0, 0..1);
+            render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
+
+            for chunk in &self.world.chunks {
+                render_pass.set_vertex_buffer(0, chunk.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(chunk.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(0..chunk.num_indices, 0, 0..1);
+            }
         }
 
         // Finish encoding, send command buffer to GPU
