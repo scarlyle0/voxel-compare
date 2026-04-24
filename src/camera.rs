@@ -67,7 +67,7 @@ impl CameraBundle {
             aspect,
             fovy: 60.0,
             znear: 0.1,
-            zfar: 500.0,
+            zfar: 2000.0,
         };
  
         let mut uniform = CameraUniform::new();

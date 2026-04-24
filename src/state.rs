@@ -20,6 +20,11 @@ pub struct State {
 
     camera: CameraBundle,
     camera_controller: CameraController,
+
+    last_frame_time: std::time::Instant,
+    frame_count: u32,
+    frame_time_accum: f32,
+    fps: f32,
 }
 
 impl State {
@@ -29,7 +34,7 @@ impl State {
         let camera = CameraBundle::new(&ctx.device, ctx.aspect_ratio());
         let camera_controller = CameraController::new(1.5);
 
-        let world = World::generate(&ctx.device, 4);
+        let world = World::generate(&ctx.device, 16);
 
         let depth_texture = texture::Texture::create_depth_texture(&ctx.device, &ctx.config, "depth_texture");
 
@@ -97,6 +102,10 @@ impl State {
             camera,
             camera_controller,
             depth_texture,
+            last_frame_time: std::time::Instant::now(),
+            frame_count: 0,
+            frame_time_accum: 0.0,
+            fps: 0.0,
         })
     }
 
@@ -114,6 +123,19 @@ impl State {
     pub fn update(&mut self) {
         self.camera_controller.update_camera(&mut self.camera.camera);
         self.camera.sync_to_gpu(&self.ctx.queue);
+
+        let now = std::time::Instant::now();
+        let dt = (now - self.last_frame_time).as_secs_f32();
+        self.last_frame_time = now;
+        self.frame_time_accum += dt;
+        self.frame_count += 1;
+
+        if self.frame_time_accum >= 0.5 {
+            self.fps = self.frame_count as f32 / self.frame_time_accum;
+            self.frame_count = 0;
+            self.frame_time_accum = 0.0;
+            self.ctx.window.set_title(&format!("Voxel Demo | {:.0} FPS", self.fps));
+        }
     }
 
     pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
