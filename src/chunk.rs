@@ -11,6 +11,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
+    // 
     pub fn generate(noise: &FastNoiseLite, chunk_x: i32, chunk_z: i32) -> Self {
         let mut voxels = vec![0u8; CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE];
 
@@ -20,10 +21,12 @@ impl Chunk {
                 let wz = (chunk_z * CHUNK_SIZE as i32 + z as i32) as f32;
 
                 let n = noise.get_noise_2d(wx, wz);
+                // Convert noise to height
                 let h = ((n + 1.0) * 0.5 * CHUNK_HEIGHT as f32 * 0.6
                     + CHUNK_HEIGHT as f32 * 0.15) as usize;
                 let h = h.min(CHUNK_HEIGHT - 1);
 
+                // Fill in all 
                 for y in 0..=h {
                     voxels[Self::idx(x, y, z)] = 1;
                 }
