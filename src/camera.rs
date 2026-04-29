@@ -31,18 +31,27 @@ impl Camera {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    view_proj: [[f32; 4]; 4],
+    view_proj:     [[f32; 4]; 4],  // used by rasteriser vertex shader
+    inv_view_proj: [[f32; 4]; 4],  // used by ray march fragment shader
+    position:      [f32; 3],       // camera world position for ray origin
+    _pad:          f32,
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
-            view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            view_proj:     glam::Mat4::IDENTITY.to_cols_array_2d(),
+            inv_view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            position:      [0.0; 3],
+            _pad:          0.0,
         }
     }
 
     pub fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
+        let vp = camera.build_view_projection_matrix();
+        self.view_proj     = vp.to_cols_array_2d();
+        self.inv_view_proj = vp.inverse().to_cols_array_2d();
+        self.position      = camera.eye.to_array();
     }
 }
 
@@ -59,7 +68,7 @@ pub struct CameraBundle {
 impl CameraBundle {
     pub fn new(device: &wgpu::Device, aspect: f32) -> Self {
         use wgpu::util::DeviceExt;
- 
+
         let camera = Camera {
             eye: glam::Vec3::new(16.0, 90.0, 90.0),
             target: glam::Vec3::new(0.0, 25.0, 0.0),
@@ -69,22 +78,22 @@ impl CameraBundle {
             znear: 0.1,
             zfar: 2000.0,
         };
- 
+
         let mut uniform = CameraUniform::new();
         uniform.update_view_proj(&camera);
- 
+
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: bytemuck::cast_slice(&[uniform]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
- 
+
         let bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("camera_bind_group_layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -93,7 +102,7 @@ impl CameraBundle {
                     count: None,
                 }],
             });
- 
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("camera_bind_group"),
             layout: &bind_group_layout,
@@ -102,7 +111,7 @@ impl CameraBundle {
                 resource: buffer.as_entire_binding(),
             }],
         });
- 
+
         Self {
             camera,
             uniform,
@@ -111,13 +120,13 @@ impl CameraBundle {
             bind_group_layout,
         }
     }
- 
+
     // Call once per frame after the controller has moved the camera.
     pub fn sync_to_gpu(&mut self, queue: &wgpu::Queue) {
         self.uniform.update_view_proj(&self.camera);
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
     }
- 
+
     pub fn set_aspect(&mut self, aspect: f32) {
         self.camera.aspect = aspect;
     }
