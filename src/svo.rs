@@ -26,7 +26,6 @@ pub struct SvoBuffers {
 impl SvoBuffers {
     pub fn build_and_upload(device: &wgpu::Device) -> Self {
         println!("Building SVO ({0}^3 grid)...", SVO_SIZE);
-        let t0 = std::time::Instant::now();
 
         // Voxel grid
         let mut noise = FastNoiseLite::new();

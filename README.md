@@ -8,13 +8,13 @@ A real-time voxel terrain renderer written in Rust, built as a hands-on explorat
 
 ### Rasterisation
 
-The traditional approach. At startup the world is divided into 33×33 chunks (radius 16). Each chunk samples a Perlin noise heightmap to determine which voxels are solid, then builds a mesh — only faces that border empty air are emitted (face culling). The resulting vertex and index buffers are uploaded to the GPU once and drawn every frame via a standard vertex/fragment pipeline.
+The traditional approach. At startup the world is divided into 33×33 chunks (radius 16). Each chunk samples a Perlin noise heightmap to determine which voxels are solid, then builds a mesh. Only faces that border empty air are emitted (face culling). The resulting vertex and index buffers are uploaded to the GPU once and drawn every frame via a standard vertex/fragment pipeline.
 
 Lighting is baked into the vertex colours at mesh-build time: top faces are full brightness, side faces are darkened by a fixed multiplier, and bottom faces darker still.
 
 ### SVO Ray March
 
-A completely different philosophy. Instead of sending geometry to the camera, rays are fired from the camera into the scene — one per pixel — and the first solid voxel each ray hits is what gets drawn.
+A completely different philosophy. Instead of sending geometry to the camera, rays are fired from the camera into the scene, one per pixel, and the first solid voxel each ray hits is what gets drawn.
 
 The scene is stored as a **Sparse Voxel Octree (SVO)**: a 512³ cubic region recursively subdivided into octants. Empty subtrees are collapsed to a single null value, so the structure is compact and large empty regions can be skipped in a single step. At startup the octree is built on the CPU (~280 K nodes) and uploaded to the GPU as a flat storage buffer.
 
@@ -37,8 +37,6 @@ The window title always shows the active renderer and current FPS.
 ---
 
 ## Building and Running
-
-Requires a recent stable Rust toolchain and a GPU with Vulkan, Metal, or DirectX 12 support.
 
 ```bash
 git clone https://github.com/yourname/voxel-demo
@@ -84,7 +82,7 @@ The 512³ world is recursively split into 8 child octants, down to individual 1�
 | Value | Meaning |
 |---|---|
 | `0` | Empty subtree |
-| High bit set | Solid leaf — lower 24 bits are packed RGB |
+| High bit set | Solid leaf, lower 24 bits are packed RGB |
 | Any other value | Index into the flat node buffer |
 
 Subtrees where every voxel is empty are pruned entirely, so the mountain-and-sky scene compresses to ~280 K nodes instead of 134 M.
@@ -95,7 +93,7 @@ A fullscreen triangle covers every pixel. In the fragment shader, the pixel's ND
 
 ### 3 — Traversal
 
-The marcher steps along the ray. At each position it descends the octree from the root — at each level picking the octant that contains the current point — until it finds either an empty node or a solid leaf.
+The marcher steps along the ray. At each position it descends the octree from the root, at each level picking the octant that contains the current point, until it finds either an empty node or a solid leaf.
 
 - **Empty node:** jump the ray to the far side of that node's bounding box in a single step. A 256-unit empty region costs one octree descent and one ray advance.
 - **Solid leaf:** shade and return.
