@@ -1,4 +1,4 @@
-use crate::{camera::CameraBundle, svo::SvoBuffers};
+use crate::{input::camera::CameraBundle, svo::svo::SvoBuffers};
 
 pub struct RayMarchRenderer {
     pub pipeline: wgpu::RenderPipeline,

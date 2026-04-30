@@ -2,14 +2,10 @@ use std::sync::Arc;
 use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 
 use crate::{
-    camera::CameraBundle,
-    controller::CameraController,
-    gpu_context::GpuContext,
-    mesh::Vertex,
-    ray_march_renderer::RayMarchRenderer,
-    svo::SvoBuffers,
-    texture,
-    world::World,
+    input::{camera::CameraBundle, controller::CameraController},
+    render::{gpu_context::GpuContext, texture},
+    chunk::{vertex::Vertex, terrain::World},
+    svo::{svo::SvoBuffers, svo_pipeline::RayMarchRenderer},
 };
 
 pub struct State {
@@ -47,7 +43,7 @@ impl State {
 
         // ── Rasterisation pipeline ────────────────────────────────────────────
         let raster_shader =
-            ctx.device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+            ctx.device.create_shader_module(wgpu::include_wgsl!("chunk/raster.wgsl"));
 
         let raster_layout =
             ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

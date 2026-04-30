@@ -1,5 +1,5 @@
 use fastnoise_lite::FastNoiseLite;
-use crate::mesh::Vertex;
+use crate::chunk::vertex::Vertex;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 64;
@@ -11,7 +11,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    // 
+    //
     pub fn generate(noise: &FastNoiseLite, chunk_x: i32, chunk_z: i32) -> Self {
         let mut voxels = vec![0u8; CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE];
 
@@ -26,7 +26,7 @@ impl Chunk {
                     + CHUNK_HEIGHT as f32 * 0.15) as usize;
                 let h = h.min(CHUNK_HEIGHT - 1);
 
-                // Fill in all 
+                // Fill in all
                 for y in 0..=h {
                     voxels[Self::idx(x, y, z)] = 1;
                 }
