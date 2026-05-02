@@ -9,11 +9,11 @@ pub struct ChunkMesh {
     pub num_indices: u32,
 }
 
-pub struct World {
+pub struct Terrain {
     pub chunks: Vec<ChunkMesh>,
 }
 
-impl World {
+impl Terrain {
     pub fn generate(device: &wgpu::Device, radius: i32) -> Self {
         let mut noise = FastNoiseLite::new();
         noise.set_noise_type(Some(NoiseType::Perlin));
@@ -56,6 +56,6 @@ impl World {
             }
         }
 
-        World { chunks }
+        Terrain { chunks }
     }
 }

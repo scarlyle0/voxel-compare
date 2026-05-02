@@ -4,8 +4,8 @@ use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::Window};
 use crate::{
     input::{camera::CameraBundle, controller::CameraController},
     render::{gpu_context::GpuContext, texture},
-    chunk::{vertex::Vertex, terrain::World},
-    svo::{svo::SvoBuffers, svo_pipeline::RayMarchRenderer},
+    chunk::{vertex::Vertex, terrain::Terrain},
+    svo::{svo::SvoBuffers, svo_pipeline::SvoPipeline},
 };
 
 pub struct State {
@@ -13,11 +13,11 @@ pub struct State {
 
     // Rasterisation renderer
     raster_pipeline: wgpu::RenderPipeline,
-    world: World,
+    terrain: Terrain,
     depth_texture: texture::Texture,
 
     // SVO ray march renderer
-    ray_march: RayMarchRenderer,
+    ray_march: SvoPipeline,
 
     // Shared
     camera: CameraBundle,
@@ -37,7 +37,7 @@ impl State {
         let camera = CameraBundle::new(&ctx.device, ctx.aspect_ratio());
         let camera_controller = CameraController::new(1.5);
 
-        let world = World::generate(&ctx.device, 16);
+        let terrain = Terrain::generate(&ctx.device, 16);
         let depth_texture =
             texture::Texture::create_depth_texture(&ctx.device, &ctx.config, "depth_texture");
 
@@ -92,12 +92,12 @@ impl State {
 
         // ── SVO ray march renderer ────────────────────────────────────────────
         let svo = SvoBuffers::build_and_upload(&ctx.device);
-        let ray_march = RayMarchRenderer::new(&ctx.device, ctx.config.format, &camera, &svo);
+        let ray_march = SvoPipeline::new(&ctx.device, ctx.config.format, &camera, &svo);
 
         Ok(Self {
             ctx,
             raster_pipeline,
-            world,
+            terrain,
             depth_texture,
             ray_march,
             camera,
@@ -223,7 +223,7 @@ impl State {
         pass.set_pipeline(&self.raster_pipeline);
         pass.set_bind_group(0, &self.camera.bind_group, &[]);
 
-        for chunk in &self.world.chunks {
+        for chunk in &self.terrain.chunks {
             pass.set_vertex_buffer(0, chunk.vertex_buffer.slice(..));
             pass.set_index_buffer(chunk.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..chunk.num_indices, 0, 0..1);

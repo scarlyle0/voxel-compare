@@ -1,11 +1,11 @@
 use crate::{input::camera::CameraBundle, svo::svo::SvoBuffers};
 
-pub struct RayMarchRenderer {
+pub struct SvoPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub svo_bind_group: wgpu::BindGroup,
 }
 
-impl RayMarchRenderer {
+impl SvoPipeline {
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
@@ -91,6 +91,6 @@ impl RayMarchRenderer {
             cache: None,
         });
 
-        RayMarchRenderer { pipeline, svo_bind_group }
+        SvoPipeline { pipeline, svo_bind_group }
     }
 }
