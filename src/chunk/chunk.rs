@@ -5,18 +5,19 @@ pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_HEIGHT: usize = 64;
 
 pub struct Chunk {
-    voxels: Vec<u8>,
-    pub chunk_x: i32,
-    pub chunk_z: i32,
+    voxels: Vec<u8>, // 1d array used in face culling loop to decide which to faces to render
+    pub chunk_x: i32, // which chunk column (x zxis)
+    pub chunk_z: i32, // which chunk column (z axis)
 }
 
 impl Chunk {
-    //
     pub fn generate(noise: &FastNoiseLite, chunk_x: i32, chunk_z: i32) -> Self {
         let mut voxels = vec![0u8; CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE];
 
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
+
+                // Convert local x,z to world coordinates for noise sampling
                 let wx = (chunk_x * CHUNK_SIZE as i32 + x as i32) as f32;
                 let wz = (chunk_z * CHUNK_SIZE as i32 + z as i32) as f32;
 
@@ -26,21 +27,23 @@ impl Chunk {
                     + CHUNK_HEIGHT as f32 * 0.15) as usize;
                 let h = h.min(CHUNK_HEIGHT - 1);
 
-                // Fill in all
+                // Fill voxels from y=0 up to height h as solid
                 for y in 0..=h {
                     voxels[Self::idx(x, y, z)] = 1;
                 }
             }
-        }
+        }  
 
         Self { voxels, chunk_x, chunk_z }
     }
 
+    // 3D position to flat array index
     #[inline]
     fn idx(x: usize, y: usize, z: usize) -> usize {
         x * CHUNK_HEIGHT * CHUNK_SIZE + y * CHUNK_SIZE + z
     }
 
+    // Check if out of bounds or air
     #[inline]
     fn is_solid(&self, x: i32, y: i32, z: i32) -> bool {
         if x < 0
@@ -55,13 +58,16 @@ impl Chunk {
         self.voxels[Self::idx(x as usize, y as usize, z as usize)] != 0
     }
 
+    // Face culling loop
     pub fn build_mesh(&self) -> (Vec<Vertex>, Vec<u32>) {
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut indices: Vec<u32> = Vec::new();
 
+        // Chunk position offset
         let ox = (self.chunk_x * CHUNK_SIZE as i32) as f32;
         let oz = (self.chunk_z * CHUNK_SIZE as i32) as f32;
 
+        // For each of 6 faces, if neighbor is empty face gets exposed and added 
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_HEIGHT {
                 for z in 0..CHUNK_SIZE {
@@ -150,6 +156,7 @@ impl Chunk {
     }
 }
 
+// Each face is a quad (4 vertices, 2 triangles) base offset makes indices relative to current end of vertex list
 fn add_face(
     vertices: &mut Vec<Vertex>,
     indices: &mut Vec<u32>,
