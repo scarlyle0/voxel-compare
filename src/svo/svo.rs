@@ -4,12 +4,11 @@ use wgpu::util::DeviceExt;
 // Side length of the cubic SVO world in voxels (must be a power of two).
 pub const SVO_SIZE: u32 = 512;
 
-/// A node in the SVO buffer.
-///
-/// Each `children[i]` encodes one child octant:
-///   0               – empty subtree
-///   high bit set    – solid leaf; lower 24 bits = packed RGB8 colour
-///   otherwise       – index into the `svo_nodes` storage buffer
+// A node in the SVO buffer.
+// Each `children[i]` encodes one child octant:
+// 0 – empty subtree
+// high bit set – solid leaf; lower 24 bits = packed RGB8 colour
+// otherwise – index into the `svo_nodes` storage buffer
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SvoNode {
@@ -55,14 +54,13 @@ impl SvoBuffers {
         }
 
         // Build SVO
-        // Slot 0 is reserved so that child value 0 unambiguously means "empty".
+        // Slot 0 is reserved so that child value 0 always means "empty".
         let mut nodes: Vec<SvoNode> = vec![SvoNode { children: [0; 8] }];
         let root = build_node(&grid, n, 0, 0, 0, SVO_SIZE, &mut nodes);
 
         // GPU upload
         // Layout (32 bytes, matches SvoInfo in ray_march.wgsl):
-        // u32 root, u32 size, u32 pad, u32 pad,
-        // f32 origin_x, f32 origin_y, f32 origin_z, f32 pad
+        // Origin is shifted to match rasterizer at x = -256, z = -256
         let half_f = SVO_SIZE as f32 * 0.5;
         let info_bytes: [u8; 32] = bytemuck::cast([
             root,
@@ -75,12 +73,14 @@ impl SvoBuffers {
             0f32.to_bits(),
         ]);
 
+        // Info uniform - 32 bytes with root index, world size, origin point
         let info_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SVO Info Buffer"),
             contents: &info_bytes,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        // Node array - the whole tree as a flat array of SvoNode
         let nodes_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("SVO Nodes Buffer"),
             contents: bytemuck::cast_slice(&nodes),
@@ -126,9 +126,9 @@ fn build_node(
     if size == 1 {
         let v = grid[x as usize * stride * stride + y as usize * stride + z as usize];
         return if v == 0 {
-            0
+            0 // empty
         } else {
-            0x8000_0000 | voxel_color_packed(y)
+            0x8000_0000 | voxel_color_packed(y) // solid leaf with color
         };
     }
 
