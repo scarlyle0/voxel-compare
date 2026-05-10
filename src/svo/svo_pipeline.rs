@@ -1,5 +1,7 @@
 use crate::{input::camera::CameraBundle, svo::svo::SvoBuffers};
 
+// contians pipeline (compiled GPU program + setting)
+// bind group (SVO data + info / nodes to be handed to GPU)
 pub struct SvoPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub svo_bind_group: wgpu::BindGroup,
@@ -12,6 +14,7 @@ impl SvoPipeline {
         camera: &CameraBundle,
         svo: &SvoBuffers,
     ) -> Self {
+        // load shader
         let shader = device.create_shader_module(wgpu::include_wgsl!("ray_march.wgsl"));
 
         // Bind group 1: SVO info uniform + nodes storage
@@ -41,6 +44,7 @@ impl SvoPipeline {
             ],
         });
 
+        // bind info buffer to 0, nodes_buffer to 1
         let svo_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("SVO Bind Group"),
             layout: &svo_layout,

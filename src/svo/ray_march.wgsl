@@ -34,7 +34,7 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOutput {
-    // Three vertices that cover the entire NDC square [-1,1]×[-1,1].
+    // Use a single oversized triangle that covers whole screen.
     var corners = array<vec2<f32>, 3>(
         vec2<f32>(-1.0, -1.0),
         vec2<f32>( 3.0, -1.0),
@@ -42,19 +42,24 @@ fn vs_main(@builtin(vertex_index) vi: u32) -> VertexOutput {
     );
     let p = corners[vi];
     var out: VertexOutput;
-    out.position = vec4<f32>(p, 0.0, 1.0);
-    out.ndc = p;
+    out.position = vec4<f32>(p, 0.0, 1.0); // hardcode z=0 and w=1
+    out.ndc = p; // ndc is normalized device coordinates, vec2 in this case
     return out;
 }
 
 // Ray–AABB slab test
-// Returns (t_near, t_far).  Miss when t_near > t_far or t_far < 0.
+// Basically asking is there some interval the ray is inside the slab
+// tnear where ray enters box, tfar where ray exits
+// ro = ray origin, inv_rd = inverse of ray direction
+// Returns (t_near, t_far). Miss when t_near > t_far or t_far < 0.
 fn ray_aabb(
     ro: vec3<f32>, inv_rd: vec3<f32>,
     box_min: vec3<f32>, box_max: vec3<f32>,
 ) -> vec2<f32> {
+    // Compute ray intersection distances to box planes
     let t0 = (box_min - ro) * inv_rd;
     let t1 = (box_max - ro) * inv_rd;
+    // Need inner min/max incase negative ray (always want entry first exit second)
     let t_near = max(max(min(t0.x, t1.x), min(t0.y, t1.y)), min(t0.z, t1.z));
     let t_far  = min(min(max(t0.x, t1.x), max(t0.y, t1.y)), max(t0.z, t1.z));
     return vec2<f32>(t_near, t_far);
@@ -150,9 +155,9 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Unproject from clip space to world space to get the ray direction.
-    let clip    = vec4<f32>(in.ndc.x, in.ndc.y, 1.0, 1.0);
-    let world_h = camera.inv_view_proj * clip;
-    let rd      = normalize(world_h.xyz / world_h.w - camera.position);
+    let clip = vec4<f32>(in.ndc.x, in.ndc.y, 1.0, 1.0);
+    let world_h = camera.inv_view_proj * clip; // clip space to world space
+    let rd = normalize(world_h.xyz / world_h.w - camera.position); // subtract camera position to get just direction then normalize
 
     return trace(camera.position, rd);
 }

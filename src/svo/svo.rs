@@ -91,7 +91,7 @@ impl SvoBuffers {
     }
 }
 
-// helper
+// choose color by height of voxel
 fn voxel_color_packed(y: u32) -> u32 {
     let h = y as f32 / 64.0;
     let (r, g, b): (u32, u32, u32) = if h > 0.70 {
@@ -122,7 +122,7 @@ fn build_node(
         return 0;
     }
 
-    // At a leaf
+    // At a leaf, store value in parents children
     if size == 1 {
         let v = grid[x as usize * stride * stride + y as usize * stride + z as usize];
         return if v == 0 {
