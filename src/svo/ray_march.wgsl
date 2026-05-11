@@ -70,11 +70,12 @@ const MAX_STEPS: i32 = 200;
 const EPS: f32 = 0.0004;
 const SKY: vec3<f32> = vec3<f32>(0.53, 0.81, 0.98);
 
+// takes in ray origin (camera world position), ray direction (direction pixel ray is pointing)
 fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
     let inv_rd = 1.0 / rd;
-    let world_sz = f32(svo_info.size);
-    let world_min = svo_info.origin;
-    let world_max = svo_info.origin + world_sz;
+    let world_sz = f32(svo_info.size); // 512
+    let world_min = svo_info.origin; // (-256, 0, -256)
+    let world_max = svo_info.origin + world_sz; // (256, 512, 256)
 
     // Early-out: does the ray hit the world AABB at all?
     let wh = ray_aabb(ro, inv_rd, world_min, world_max);
@@ -82,13 +83,13 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
         return vec4<f32>(SKY, 1.0);
     }
 
-    var t = max(wh.x, 0.0) + EPS;
-    let t_max = wh.y;
+    var t = max(wh.x, 0.0) + EPS; // start at where ray enters world box, or 0 if already inside, EPS is a nudge forward to avoice ray sitting on boundary exactly
+    let t_max = wh.y; // where ray exits
 
     for (var step = 0; step < MAX_STEPS; step++) {
         if t >= t_max { break; }
 
-        let pos = ro + t * rd;
+        let pos = ro + t * rd; // current position along the ray
 
         // Descend the SVO to find the subtree containing `pos`
         var node_val = svo_info.root;
@@ -104,15 +105,15 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
             }
 
             if (node_val & 0x80000000u) != 0u {
-                // Solid leaf hit
+                // Solid leaf hit, unpack color
                 let packed = node_val & 0x00FFFFFFu;
                 let r = f32((packed >> 16u) & 0xFFu) / 255.0;
                 let g = f32((packed >>  8u) & 0xFFu) / 255.0;
-                let b = f32( packed         & 0xFFu) / 255.0;
+                let b = f32(packed & 0xFFu) / 255.0;
                 let base = vec3<f32>(r, g, b);
 
                 // Surface normal from the entry face of this voxel.
-                let t0v = (node_min              - ro) * inv_rd;
+                let t0v = (node_min - ro) * inv_rd;
                 let t1v = (node_min + node_size  - ro) * inv_rd;
                 let tn  = min(t0v, t1v);
                 var normal = vec3<f32>(0.0, 1.0, 0.0);
@@ -131,15 +132,15 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
 
             // Internal node: step into the child that contains `pos`
             let half = node_size * 0.5;
-            let mid  = node_min + half;
-            let ox   = select(0u, 1u, pos.x >= mid.x);
-            let oy   = select(0u, 1u, pos.y >= mid.y);
-            let oz   = select(0u, 1u, pos.z >= mid.z);
-            let oct  = ox | (oy << 1u) | (oz << 2u);
+            let mid = node_min + half;
+            let ox = select(0u, 1u, pos.x >= mid.x); // is pos left or right of center?
+            let oy = select(0u, 1u, pos.y >= mid.y); // is pos below or above center?
+            let oz = select(0u, 1u, pos.z >= mid.z); // is pos front or back of center?
+            let oct = ox | (oy << 1u) | (oz << 2u);
 
-            node_min  = node_min + vec3<f32>(f32(ox), f32(oy), f32(oz)) * half;
+            node_min = node_min + vec3<f32>(f32(ox), f32(oy), f32(oz)) * half;
             node_size = half;
-            node_val  = svo_nodes[node_val].children[oct];
+            node_val = svo_nodes[node_val].children[oct];
         }
 
         // `node_min`/`node_size` now describe an empty (or out-of-bounds) box.
