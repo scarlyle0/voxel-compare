@@ -125,7 +125,7 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
                     normal = vec3<f32>(0.0, 0.0, -sign(rd.z));
                 }
 
-                let sun   = normalize(vec3<f32>(0.6, 1.0, 0.4));
+                let sun = normalize(vec3<f32>(0.6, 1.0, 0.4));
                 let light = 0.20 + 0.80 * max(dot(normal, sun), 0.0);
                 return vec4<f32>(base * light, 1.0);
             }
