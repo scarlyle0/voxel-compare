@@ -1,4 +1,4 @@
-# Voxel Demo
+# Voxel Compare
 
 A real-time voxel terrain renderer written in Rust, built as a hands-on exploration of two fundamentally different rendering techniques side by side. Press **Tab** at any time to switch between them.
 
