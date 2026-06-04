@@ -146,7 +146,8 @@ fn trace(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
         // `node_min`/`node_size` now describe an empty (or out-of-bounds) box.
         // Advance the ray to its far side so the next step enters new space.
         let exit = ray_aabb(ro, inv_rd, node_min, node_min + node_size);
-        t = exit.y + EPS;
+        let nudge = max(EPS, min(abs(exit.y) * 1e-4, 0.25));
+        t = exit.y + nudge;
     }
 
     return vec4<f32>(SKY, 1.0);
